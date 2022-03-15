@@ -9,6 +9,8 @@ import logging
 import re
 
 from config_models.models import ConfigurationModel, cache
+from simple_history import register
+from social_django.models import UserSocialAuth
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.exceptions import ValidationError
@@ -946,3 +948,5 @@ class LTIProviderConfig(ProviderConfig):
         app_label = "third_party_auth"
         verbose_name = "Provider Configuration (LTI)"
         verbose_name_plural = verbose_name
+
+register(UserSocialAuth, app=__package__)
