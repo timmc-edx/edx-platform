@@ -3,16 +3,21 @@ Authn API Views
 """
 
 from django.conf import settings
+
+from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
 from rest_framework import status
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
 from rest_framework.views import APIView
+from rest_framework.authentication import SessionAuthentication
 from rest_framework.permissions import IsAuthenticated
 from edx_rest_framework_extensions.auth.session.authentication import SessionAuthenticationAllowInactiveUser
 
 from common.djangoapps.student.helpers import get_next_url_for_login_page
-from openedx.core.djangoapps.user_authn.views.utils import get_mfe_context
 from common.djangoapps.student.views import compose_and_send_activation_email
+from openedx.core.djangoapps.user_authn.views.utils import get_mfe_context
+from openedx.core.lib.api.authentication import BearerAuthentication
+from openedx.core.djangoapps.user_authn.api.helper import RegistrationFieldsView
 
 
 class MFEContextThrottle(AnonRateThrottle):
@@ -74,3 +79,28 @@ class SendAccountActivationEmail(APIView):
             return Response(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class OptionalFieldsThrottle(UserRateThrottle):
+    """
+    Setting rate limit for OptionalFieldsData API
+    """
+    rate = settings.OPTIONAL_FIELD_API_RATELIMIT
+
+
+class RequiredFieldsView(RegistrationFieldsView):
+    """
+    Construct Registration forms and associated fields.
+    """
+    FIELD_TYPE = 'required'
+
+
+class OptionalFieldsView(RegistrationFieldsView):
+    """
+    Construct Registration forms and associated fields.
+    """
+    FIELD_TYPE = 'optional'
+
+    throttle_classes = [OptionalFieldsThrottle]
+    authentication_classes = (JwtAuthentication, BearerAuthentication, SessionAuthentication,)
+    permission_classes = (IsAuthenticated,)

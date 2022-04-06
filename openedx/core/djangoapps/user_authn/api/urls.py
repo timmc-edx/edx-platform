@@ -2,9 +2,12 @@
 Authn API urls
 """
 from django.urls import path
-from openedx.core.djangoapps.user_authn.api.views import MFEContextView, SendAccountActivationEmail
-from openedx.core.djangoapps.user_authn.api.optional_fields import OptionalFieldsView
-
+from openedx.core.djangoapps.user_authn.api.views import (
+    MFEContextView,
+    SendAccountActivationEmail,
+    OptionalFieldsView,
+    RequiredFieldsView
+)
 urlpatterns = [
     path('third_party_auth_context', MFEContextView.as_view(), name='third_party_auth_context'),
     path('mfe_context', MFEContextView.as_view(), name='mfe_context'),
@@ -12,4 +15,5 @@ urlpatterns = [
          name='send_account_activation_email'
          ),
     path('optional_fields', OptionalFieldsView.as_view(), name='optional_fields'),
+    path('required_fields', RequiredFieldsView.as_view(), name='required_fields'),
 ]

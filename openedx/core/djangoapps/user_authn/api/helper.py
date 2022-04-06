@@ -1,36 +1,24 @@
 """
-Optional Fields API used by Authn MFE to populate progressive profiling form
+Registration Fields View used by optional and required fields view.
 """
 import copy
 
 from django.conf import settings
-from edx_rest_framework_extensions.auth.jwt.authentication import JwtAuthentication
+
 from rest_framework import status
-from rest_framework.authentication import SessionAuthentication
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
+from rest_framework.response import Response
 
 from openedx.core.djangoapps.site_configuration import helpers as configuration_helpers
 from openedx.core.djangoapps.user_authn.api import form_fields
-from openedx.core.lib.api.authentication import BearerAuthentication
+from openedx.core.djangoapps.user_authn.views.registration_form import get_registration_extension_form
 
 
-class OptionalFieldsThrottle(UserRateThrottle):
+class RegistrationFieldsView(APIView):
     """
-    Setting rate limit for OptionalFieldsData API
+    Registration Fields View used by optional and required fields view.
     """
-    rate = settings.OPTIONAL_FIELD_API_RATELIMIT
-
-
-class OptionalFieldsView(APIView):
-    """
-    Construct Registration forms and associated fields.
-    """
-    throttle_classes = [OptionalFieldsThrottle]
-    authentication_classes = (JwtAuthentication, BearerAuthentication, SessionAuthentication,)
-    permission_classes = (IsAuthenticated,)
+    FIELD_TYPE = None
 
     EXTRA_FIELDS = [
         'confirm_email',
@@ -83,22 +71,48 @@ class OptionalFieldsView(APIView):
         if settings.ENABLE_COPPA_COMPLIANCE and 'year_of_birth' in ordered_extra_fields:
             ordered_extra_fields.remove('year_of_birth')
 
-        self.valid_fields = [field for field in ordered_extra_fields if self._fields_setting.get(field) == 'optional']
+        self.valid_fields = [
+            field for field in ordered_extra_fields if self._fields_setting.get(field) == self.FIELD_TYPE
+        ]
+
+        custom_form = get_registration_extension_form()
+        if custom_form:
+            for field_name, field in custom_form.fields.items():
+                # If the FIELD_TYPE is required make sure the custom field is required in the form and if the
+                # FIELD_TYPE is optional only add field if it is not required. This is to make sure field is
+                # added only once either on Registration Page or Progressive Profiling page.
+                if (
+                    field.required and self.FIELD_TYPE == 'required' or
+                    not field.required and self.FIELD_TYPE == 'optional'
+                ):
+                    self.valid_fields.append(field_name)
 
     def get(self, request):  # lint-amnesty, pylint: disable=unused-argument
         """
-        Returns the optional fields configured in REGISTRATION_EXTRA_FIELDS settings.
+        Returns the required or optional fields configured in REGISTRATION_EXTRA_FIELDS settings.
         """
+        # Custom form fields can be added via the form set in settings.REGISTRATION_EXTENSION_FORM
+        custom_form = get_registration_extension_form() or {}
         response = {}
         for field in self.valid_fields:
-            field_handler = getattr(form_fields, f'add_{field}_field', None)
-            if field_handler:
-                response[field] = field_handler()
+            if custom_form and field in custom_form.fields:
+                response[field] = form_fields.add_extension_form_field(
+                    field, custom_form, custom_form.fields[field], self.FIELD_TYPE
+                )
+            else:
+                field_handler = getattr(form_fields, f'add_{field}_field', None)
+                if field_handler:
+                    if field == 'honor_code':
+                        terms_of_services = self._fields_setting.get("terms_of_service")
+                        if terms_of_services in ["required", "optional", "optional-exposed"]:
+                            response[field] = field_handler(bool(terms_of_services))
+                    else:
+                        response[field] = field_handler()
 
         if not self.valid_fields or not response:
             return Response(
                 status=status.HTTP_400_BAD_REQUEST,
-                data={'error_code': 'optional_fields_configured_incorrectly'}
+                data={'error_code': f'{self.FIELD_TYPE}_fields_configured_incorrectly'}
             )
 
         return Response(
