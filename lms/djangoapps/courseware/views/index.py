@@ -64,10 +64,7 @@ from ..masquerade import check_content_start_date_for_masquerade_user, setup_mas
 from ..model_data import FieldDataCache
 from ..module_render import get_module_for_descriptor, toc_for_course
 from ..permissions import MASQUERADE_AS_STUDENT
-from ..toggles import (
-    courseware_legacy_is_visible,
-    courseware_mfe_is_advertised
-)
+from ..toggles import courseware_mfe_is_active
 from .views import CourseTabView
 
 log = logging.getLogger("edx.courseware.views.index")
@@ -111,6 +108,7 @@ class CoursewareIndex(View):
         """
         self.course_key = CourseKey.from_string(course_id)
 
+        print('MIKE getting...', courseware_mfe_is_active())
         if not (request.user.is_authenticated or self.enable_unenrolled_access):
             return redirect_to_login(request.get_full_path())
 
@@ -130,12 +128,14 @@ class CoursewareIndex(View):
 
                 self.view = STUDENT_VIEW
 
+                print('MIKE access...', self.course_key)
                 self.course = get_course_with_access(
                     request.user, 'load', self.course_key,
                     depth=CONTENT_DEPTH,
                     check_if_enrolled=True,
                     check_if_authenticated=True
                 )
+                print('MIKE access2...')
                 self.course_overview = CourseOverview.get_from_id(self.course.id)
                 self.is_staff = has_access(request.user, 'staff', self.course)
 
@@ -153,6 +153,7 @@ class CoursewareIndex(View):
 
                 return self.render(request)
         except Exception as exception:  # pylint: disable=broad-except
+            print("MIKE: esception:", type(exception))
             return CourseTabView.handle_exceptions(request, self.course_key, self.course, exception)
 
     def _setup_masquerade_for_effective_user(self):
@@ -172,23 +173,11 @@ class CoursewareIndex(View):
 
     def _redirect_to_learning_mfe(self):
         """
-        Can the user access this sequence in Legacy courseware? If not, redirect to MFE.
-
-        We specifically allow users to stay in the Legacy frontend for special
-        (ie timed/proctored) exams since they're not yet supported by the MFE.
+        Can the user access this sequence in the courseware MFE? If so, redirect to MFE.
         """
-        # STAY: if the course run as a whole is visible in the Legacy experience.
-        if courseware_legacy_is_visible(
-                course_key=self.course_key,
-                is_global_staff=self.request.user.is_staff,
-        ):
-            return
-        # STAY: if we are in a special (ie proctored/timed) exam, which isn't yet
-        #       supported on the MFE.
-        if getattr(self.section, 'is_time_limited', False):
-            return
-        # REDIRECT otherwise.
-        raise Redirect(self.microfrontend_url)
+        # If the MFE is active, prefer that
+        if courseware_mfe_is_active():
+            raise Redirect(self.microfrontend_url)
 
     @property
     def microfrontend_url(self):
@@ -223,6 +212,7 @@ class CoursewareIndex(View):
             self.chapter = self._find_chapter()
             self.section = self._find_section()
 
+            print('MIKE will redirect?', self.chapter.location, self.section.location, courseware_mfe_is_active())
             if self.chapter and self.section:
                 self._redirect_if_not_requested_section()
                 self._save_positions()
@@ -496,16 +486,6 @@ class CoursewareIndex(View):
 
             if self.section.position and self.section.has_children:
                 self._add_sequence_title_to_context(courseware_context)
-
-        # Courseware MFE link
-        if courseware_mfe_is_advertised(
-                is_global_staff=request.user.is_staff,
-                is_course_staff=staff_access,
-                course_key=self.course.id,
-        ):
-            courseware_context['microfrontend_link'] = self.microfrontend_url
-        else:
-            courseware_context['microfrontend_link'] = None
 
         return courseware_context
 

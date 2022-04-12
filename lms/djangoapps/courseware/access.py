@@ -139,6 +139,7 @@ def has_access(user, action, obj, course_key=None):
     # Preview mode is only accessible by staff.
     if in_preview_mode() and course_key:
         if not has_staff_access_to_preview_mode(user, course_key):
+            print("MIKE: denying because of non-staff access to preview")
             return ACCESS_DENIED
 
     # delegate the work to type-specific functions.
@@ -181,6 +182,7 @@ def has_staff_access_to_preview_mode(user, course_key):
     """
     has_admin_access_to_course = any(administrative_accesses_to_course_for_user(user, course_key))
 
+    print("MIKE: has staff access to preview?", has_admin_access_to_course, is_masquerading_as_student(user, course_key))
     return has_admin_access_to_course or is_masquerading_as_student(user, course_key)
 
 

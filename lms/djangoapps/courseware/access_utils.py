@@ -97,6 +97,7 @@ def in_preview_mode():
     """
     Returns whether the user is in preview mode or not.
     """
+    # return True  # MIKE
     hostname = get_current_request_hostname()
     preview_lms_base = settings.FEATURES.get('PREVIEW_LMS_BASE', None)
     return bool(preview_lms_base and hostname and hostname.split(':')[0] == preview_lms_base.split(':')[0])

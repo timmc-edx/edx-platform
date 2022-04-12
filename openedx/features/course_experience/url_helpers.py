@@ -22,24 +22,9 @@ from xmodule.modulestore.search import navigation_index, path_to_location  # lin
 User = get_user_model()
 
 
-class ExperienceOption(Enum):
-    """
-    Versions of the courseware experience that can be requested.
-
-    `ACTIVE` indicates that the default experience (in the context of the
-    course run) should be used.
-
-    To be removed as part of DEPR-109.
-    """
-    ACTIVE = 'courseware-experience-active'
-    NEW = 'courseware-experience-new'
-    LEGACY = 'courseware-experience-legacy'
-
-
 def get_courseware_url(
         usage_key: UsageKey,
         request: Optional[HttpRequest] = None,
-        experience: ExperienceOption = ExperienceOption.ACTIVE,
 ) -> str:
     """
     Return the URL to the canonical learning experience for a given block.
@@ -56,14 +41,11 @@ def get_courseware_url(
         * ItemNotFoundError if no data at the `usage_key`.
         * NoPathToItem if we cannot build a path to the `usage_key`.
     """
-    course_key = usage_key.course_key.replace(version_guid=None, branch=None)
-    if experience == ExperienceOption.NEW:
-        get_url_fn = _get_new_courseware_url
-    elif experience == ExperienceOption.LEGACY:
-        get_url_fn = _get_legacy_courseware_url
-    elif courseware_mfe_is_active(course_key):
+    if courseware_mfe_is_active():
+        print("MIKE: courseware mfe is active")
         get_url_fn = _get_new_courseware_url
     else:
+        print("MIKE: legacy mode!")
         get_url_fn = _get_legacy_courseware_url
     return get_url_fn(usage_key=usage_key, request=request)
 

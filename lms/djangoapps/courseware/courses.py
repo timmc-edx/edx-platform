@@ -147,26 +147,31 @@ def check_course_access(course, user, action, check_if_enrolled=False, check_sur
         # Below is a series of checks that must all pass for a user to be granted access
         # to a course. (Essentially check this AND check that AND...)
         # Also note: access_response (AccessResponse) objects are compared as booleans
+        print("MIKE: access1")
         access_response = has_access(user, action, course, course.id)
         if not access_response:
             return access_response
 
+        print("MIKE: access2")
         if check_if_authenticated:
             authentication_access_response = check_authentication(user, course)
             if not authentication_access_response:
                 return authentication_access_response
 
+        print("MIKE: access3")
         if check_if_enrolled:
             enrollment_access_response = check_enrollment(user, course)
             if not enrollment_access_response:
                 return enrollment_access_response
 
+        print("MIKE: access4")
         # Redirect if the user must answer a survey before entering the course.
         if check_survey_complete and action == 'load':
             survey_access_response = check_survey_required_and_unanswered(user, course)
             if not survey_access_response:
                 return survey_access_response
 
+        print("MIKE: access5")
         # This access_response will be ACCESS_GRANTED
         return access_response
 
