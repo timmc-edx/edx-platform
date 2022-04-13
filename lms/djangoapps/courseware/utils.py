@@ -141,12 +141,14 @@ def is_eligible_for_financial_aid(course_id):
     """
     response = _request_financial_assistance('GET', f"{settings.IS_ELIGIBLE_FOR_FINANCIAL_ASSISTANCE_URL}{course_id}/")
     if response.status_code == status.HTTP_200_OK:
-        return response.json().get('is_eligible'), response.json().get('reason')
+        log.info(response.json().get('reason'))
+        return response.json().get('is_eligible')
     elif response.status_code == status.HTTP_400_BAD_REQUEST:
-        return False, response.json().get('message')
+        log.error(response.json().get('message'))
+        return False
     else:
         log.error('%s %s', UNEXPECTED_ERROR_IS_ELIGIBLE, str(response.content))
-        return False, UNEXPECTED_ERROR_IS_ELIGIBLE
+        return False
 
 
 def get_financial_assistance_application_status(user_id, course_id):

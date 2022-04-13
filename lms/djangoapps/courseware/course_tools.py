@@ -9,6 +9,8 @@ import pytz
 from django.conf import settings
 from django.utils.translation import gettext as _
 from django.urls import reverse
+from lms.djangoapps.courseware.utils import is_eligible_for_financial_aid
+from lms.djangoapps.courseware.config import ENABLE_NEW_FINANCIAL_ASSISTANCE_FLOW
 from common.djangoapps.course_modes.models import CourseMode
 from openedx.features.course_experience.course_tools import CourseTool
 from common.djangoapps.student.models import CourseEnrollment
@@ -65,7 +67,10 @@ class FinancialAssistanceTool(CourseTool):
         else:
             return False
 
-        return bool(course_overview.eligible_for_financial_aid)
+        if ENABLE_NEW_FINANCIAL_ASSISTANCE_FLOW.is_enabled():
+            return is_eligible_for_financial_aid(course_key.__str__())
+        else:
+            return bool(course_overview.eligible_for_financial_aid)
 
     @classmethod
     def title(cls, course_key=None):
