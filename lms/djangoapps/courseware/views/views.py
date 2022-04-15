@@ -92,6 +92,7 @@ from lms.djangoapps.courseware.exceptions import CourseAccessRedirect, Redirect
 from lms.djangoapps.courseware.masquerade import is_masquerading_as_specific_student, setup_masquerade
 from lms.djangoapps.courseware.model_data import FieldDataCache
 from lms.djangoapps.courseware.models import BaseStudentModuleHistory, StudentModule
+from lms.djangoapps.courseware.utils import _use_new_financial_assistance_flow, is_eligible_for_financial_aid
 from lms.djangoapps.courseware.permissions import (
     MASQUERADE_AS_STUDENT,
     VIEW_COURSE_HOME,
@@ -1976,10 +1977,16 @@ FA_SHORT_ANSWER_INSTRUCTIONS = _('Use between 1250 and 2500 characters or so in 
 
 
 @login_required
-def financial_assistance(_request):
+def financial_assistance(request, course_id=None):
     """Render the initial financial assistance page."""
+    reason = None
+    if _use_new_financial_assistance_flow(course_id):
+        _, reason = is_eligible_for_financial_aid(course_id)
+
     return render_to_response('financial-assistance/financial-assistance.html', {
-        'header_text': _get_fa_header(FINANCIAL_ASSISTANCE_HEADER)
+        'header_text': _get_fa_header(FINANCIAL_ASSISTANCE_HEADER),
+        'course_id': course_id,
+        'reason': reason
     })
 
 
@@ -2052,10 +2059,52 @@ def financial_assistance_request(request):
 
 
 @login_required
-def financial_assistance_form(request):
+@require_POST
+def financial_assistance_request_v2(request):
+    """
+    Uses the new financial assistance application flow.
+    Creates a post request to edx-financial-assistance backend.
+    """
+    try:
+        data = json.loads(request.body.decode('utf8'))
+        username = data['username']
+        # Simple sanity check that the session belongs to the user
+        # submitting an FA request
+        if request.user.username != username:
+            return HttpResponseForbidden()
+
+        lms_user_id = request.user.id
+        course_id = data['course']
+        income = data['income']
+        learner_reasons = data['reason_for_applying']
+        learner_goals = data['goals']
+        learner_plans = data['effort']
+        allowed_for_marketing = data['mktg-permission']
+
+    except ValueError:
+        # Thrown if JSON parsing fails
+        return HttpResponseBadRequest('Could not parse request JSON.')
+    except KeyError as err:
+        # Thrown if fields are missing
+        return HttpResponseBadRequest(f'The field {str(err)} is required.')
+
+    form_data = {
+        'lms_user_id': lms_user_id,
+        'course_id': course_id,
+        'income': income,
+        'learner_reasons': learner_reasons,
+        'learner_goals': learner_goals,
+        'learner_plans': learner_plans,
+        'allowed_for_marketing': allowed_for_marketing
+    }
+    return create_financial_assistance_application(form_data)
+
+
+@login_required
+def financial_assistance_form(request, course_id):
     """Render the financial assistance application form page."""
     user = request.user
-    enrolled_courses = get_financial_aid_courses(user)
+    enrolled_courses = get_financial_aid_courses(user, course_id)
     incomes = ['Less than $5,000', '$5,000 - $10,000', '$10,000 - $15,000', '$15,000 - $20,000', '$20,000 - $25,000',
                '$25,000 - $40,000', '$40,000 - $55,000', '$55,000 - $70,000', '$70,000 - $85,000',
                '$85,000 - $100,000', 'More than $100,000']
@@ -2084,6 +2133,7 @@ def financial_assistance_form(request):
                 'placeholder': '',
                 'defaultValue': '',
                 'required': True,
+                'disabled': True,
                 'options': enrolled_courses,
                 'instructions': gettext(
                     'Select the course for which you want to earn a verified certificate. If'
@@ -2098,6 +2148,7 @@ def financial_assistance_form(request):
                 'placeholder': '',
                 'defaultValue': '',
                 'required': True,
+                'disabled': False,
                 'options': annual_incomes,
                 'instructions': _('Specify your annual household income in US Dollars.')
             },
@@ -2157,7 +2208,7 @@ def financial_assistance_form(request):
     })
 
 
-def get_financial_aid_courses(user):
+def get_financial_aid_courses(user, course_id=None):
     """ Retrieve the courses eligible for financial assistance. """
     financial_aid_courses = []
     for enrollment in CourseEnrollment.enrollments_for_user(user).order_by('-created'):
@@ -2169,13 +2220,16 @@ def get_financial_aid_courses(user):
                     Q(_expiration_datetime__isnull=True) | Q(_expiration_datetime__gt=datetime.now(UTC)),
                     course_id=enrollment.course_id,
                     mode_slug=CourseMode.VERIFIED).exists():
-
-            financial_aid_courses.append(
-                {
-                    'name': enrollment.course_overview.display_name,
-                    'value': str(enrollment.course_id)
-                }
-            )
+        default = False
+        if enrollment.course_overview.__str__() == course_id:
+            default = True
+        financial_aid_courses.append(
+            {
+                'name': enrollment.course_overview.display_name,
+                'value': str(enrollment.course_id),
+                'default': default
+            }
+        )
 
     return financial_aid_courses
 

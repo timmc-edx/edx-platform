@@ -9,8 +9,6 @@ import pytz
 from django.conf import settings
 from django.utils.translation import gettext as _
 from django.urls import reverse
-from lms.djangoapps.courseware.utils import is_eligible_for_financial_aid
-from lms.djangoapps.courseware.config import ENABLE_NEW_FINANCIAL_ASSISTANCE_FLOW
 from common.djangoapps.course_modes.models import CourseMode
 from openedx.features.course_experience.course_tools import CourseTool
 from common.djangoapps.student.models import CourseEnrollment
@@ -42,9 +40,9 @@ class FinancialAssistanceTool(CourseTool):
 
         # hide link if there's no ENABLE_FINANCIAL_ASSISTANCE_FORM setting (ex: Edge) or if it's False
         subset_name = 'FEATURES'
-        feature_flags = getattr(settings, subset_name)
-        if feature_flags is None or not feature_flags.get('ENABLE_FINANCIAL_ASSISTANCE_FORM'):
-            return False
+        # feature_flags = getattr(settings, subset_name)
+        # if feature_flags is None or not feature_flags.get('ENABLE_FINANCIAL_ASSISTANCE_FORM'):
+        #     return False
 
         # hide link for archived courses
         if course_overview is not None and course_overview.end is not None and now > course_overview.end:
@@ -67,10 +65,7 @@ class FinancialAssistanceTool(CourseTool):
         else:
             return False
 
-        if ENABLE_NEW_FINANCIAL_ASSISTANCE_FLOW.is_enabled():
-            return is_eligible_for_financial_aid(course_key.__str__())
-        else:
-            return bool(course_overview.eligible_for_financial_aid)
+        return bool(course_overview.eligible_for_financial_aid)
 
     @classmethod
     def title(cls, course_key=None):
@@ -91,4 +86,4 @@ class FinancialAssistanceTool(CourseTool):
         """
         Returns the URL for this tool for the specified course key.
         """
-        return reverse('financial_assistance')
+        return reverse('financial_assistance', args=[course_key])

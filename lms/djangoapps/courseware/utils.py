@@ -21,6 +21,7 @@ from lms.djangoapps.courseware.constants import (
     UNEXPECTED_ERROR_CREATE_APPLICATION,
     UNEXPECTED_ERROR_IS_ELIGIBLE
 )
+from lms.djangoapps.courseware.config import ENABLE_NEW_FINANCIAL_ASSISTANCE_FLOW
 from lms.djangoapps.courseware.models import FinancialAssistanceConfiguration
 
 log = logging.getLogger(__name__)
@@ -141,14 +142,12 @@ def is_eligible_for_financial_aid(course_id):
     """
     response = _request_financial_assistance('GET', f"{settings.IS_ELIGIBLE_FOR_FINANCIAL_ASSISTANCE_URL}{course_id}/")
     if response.status_code == status.HTTP_200_OK:
-        log.info(response.json().get('reason'))
-        return response.json().get('is_eligible')
+        return response.json().get('is_eligible'), response.json().get('reason')
     elif response.status_code == status.HTTP_400_BAD_REQUEST:
-        log.error(response.json().get('message'))
-        return False
+        return False, response.json().get('message')
     else:
         log.error('%s %s', UNEXPECTED_ERROR_IS_ELIGIBLE, str(response.content))
-        return False
+        return False, UNEXPECTED_ERROR_IS_ELIGIBLE
 
 
 def get_financial_assistance_application_status(user_id, course_id):
@@ -210,3 +209,15 @@ def get_course_hash_value(course_key):
         return int(m.hexdigest(), base=16) % 100
 
     return out_of_bound_value
+
+
+def _use_new_financial_assistance_flow(course_id):
+    """
+    Returns if the course_id can be used in the new financial assistance flow.
+    """
+    financial_assistance_configuration = FinancialAssistanceConfiguration.current()
+    if financial_assistance_configuration.enabled:
+        if ENABLE_NEW_FINANCIAL_ASSISTANCE_FLOW.is_enabled() or get_course_hash_value(course_id) <= \
+                financial_assistance_configuration.fa_backend_enabled_courses_percentage:
+            return True
+    return False

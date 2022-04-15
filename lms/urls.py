@@ -948,24 +948,29 @@ if 'debug_toolbar' in settings.INSTALLED_APPS:
         path('__debug__/', include(debug_toolbar.urls)),
     ]
 
-if settings.FEATURES.get('ENABLE_FINANCIAL_ASSISTANCE_FORM'):
-    urlpatterns += [
-        path(
-            'financial-assistance/',
-            courseware_views.financial_assistance,
-            name='financial_assistance'
-        ),
-        path(
-            'financial-assistance/apply/',
-            courseware_views.financial_assistance_form,
-            name='financial_assistance_form'
-        ),
-        path(
-            'financial-assistance/submit/',
-            courseware_views.financial_assistance_request,
-            name='submit_financial_assistance_request'
-        )
-    ]
+# if settings.FEATURES.get('ENABLE_FINANCIAL_ASSISTANCE_FORM'):
+urlpatterns += [
+    re_path(
+        fr'financial-assistance/{settings.COURSE_ID_PATTERN}/apply/',
+        courseware_views.financial_assistance_form,
+        name='financial_assistance_form'
+    ),
+    re_path(
+        fr'financial-assistance/{settings.COURSE_ID_PATTERN}',
+        courseware_views.financial_assistance,
+        name='financial_assistance'
+    ),
+    path(
+        'financial-assistance/submit/',
+        courseware_views.financial_assistance_request,
+        name='submit_financial_assistance_request'
+    ),
+    path(
+        'financial-assistance_v2/submit/',
+        courseware_views.financial_assistance_request_v2,
+        name='submit_financial_assistance_request_v2'
+    )
+]
 
 # API docs.
 urlpatterns += make_docs_urls(api_info)
