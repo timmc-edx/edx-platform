@@ -41,7 +41,9 @@ def update_discussions_on_course_publish(sender, course_key, **kwargs):  # pylin
 
 
 @receiver(signals.comment_created)
-def send_discussion_email_notification(sender, user, post, **kwargs):  # lint-amnesty, pylint: disable=missing-function-docstring, unused-argument
+@receiver(signals.comment_flagged)
+@receiver(signals.thread_flagged)
+def send_discussion_email_notification(sender, user, post, reported_content=False, **kwargs):  # lint-amnesty, pylint: disable=missing-function-docstring, unused-argument
     current_site = get_current_site()
     if current_site is None:
         log.info('Discussion: No current site, not sending notification about post: %s.', post.id)
@@ -57,12 +59,14 @@ def send_discussion_email_notification(sender, user, post, **kwargs):  # lint-am
         log.info(log_message, current_site, post.id)
         return
 
+    if reported_content:
+        send_message_for_reported_content(user, post, current_site, sender)
     send_message(post, current_site)
 
 
-def send_message(comment, site):  # lint-amnesty, pylint: disable=missing-function-docstring
+def create_message_context(comment, site):
     thread = comment.thread
-    context = {
+    return {
         'course_id': str(thread.course_id),
         'comment_id': comment.id,
         'comment_body': comment.body,
@@ -75,4 +79,39 @@ def send_message(comment, site):  # lint-amnesty, pylint: disable=missing-functi
         'thread_commentable_id': thread.commentable_id,
         'site_id': site.id
     }
+
+
+def create_message_context_for_reported_content(user, post, site, sender):
+    """
+    Create message context for reported content.
+    """
+    if sender == 'flag_abuse_for_comment':
+        return {
+            'user_id': user.id,
+            'course_id': str(post.course_id),
+            'comment_id': post.id,
+            'comment_body': post.body,
+            'comment_author_id': post.user_id,
+            'comment_created_at': post.created_at,  # comment_client models dates are already serialized
+            'site_id': site.id
+        }
+    return {
+        'user_id': user.id,
+        'course_id': str(post.course_id),
+        'thread_id': post.id,
+        'thread_title': post.title,
+        'thread_author_id': post.user_id,
+        'thread_created_at': post.created_at,  # comment_client models dates are already serialized
+        'thread_commentable_id': post.commentable_id,
+        'site_id': site.id
+    }
+
+
+def send_message(comment, site):  # lint-amnesty, pylint: disable=missing-function-docstring
+    context = create_message_context(comment, site)
     tasks.send_ace_message.apply_async(args=[context])
+
+
+def send_message_for_reported_content(user, post, site, sender):  # lint-amnesty, pylint: disable=missing-function-docstring
+    context = create_message_context_for_reported_content(user, post, site, sender)
+    tasks.send_ace_message_for_reported_content.apply_async(args=[context], countdown=1200)

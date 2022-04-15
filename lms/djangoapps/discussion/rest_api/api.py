@@ -51,6 +51,8 @@ from openedx.core.djangoapps.django_comment_common.signals import (
     thread_deleted,
     thread_edited,
     thread_voted,
+    thread_flagged,
+    comment_flagged,
 )
 from openedx.core.djangoapps.user_api.accounts.api import get_account_settings
 from openedx.core.lib.exceptions import CourseNotFoundError, DiscussionNotFoundError, PageNotFoundError
@@ -1018,6 +1020,10 @@ def _handle_abuse_flagged_field(form_value, user, cc_content):
     """mark or unmark thread/comment as abused"""
     if form_value:
         cc_content.flagAbuse(user, cc_content)
+        if cc_content.type == 'thread':
+            thread_flagged.send(sender=None, user=user, post=cc_content, reported_content=True)
+        else:
+            comment_flagged.send(sender=None, user=user, post=cc_content, reported_content=True)
     else:
         cc_content.unFlagAbuse(user, cc_content, removeAll=False)
 
