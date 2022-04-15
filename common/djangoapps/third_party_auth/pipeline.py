@@ -468,6 +468,7 @@ def get_provider_user_states(user):
 
 def running(request):
     """Returns True iff request is running a third-party auth pipeline."""
+    print('\n\n get(request) is ', get(request))
     return get(request) is not None  # Avoid False for {}.
 
 
@@ -741,7 +742,7 @@ def associate_by_email_if_login_api(auth_entry, backend, details, user, current_
 
         association_response, user_is_active = get_associated_user_by_email_response(
             backend, details, user, *args, **kwargs)
-
+        print("\n\n association_response in associate_by_email_if_login_api is  ", association_response)
         if user_is_active:
             return association_response
 
@@ -757,7 +758,7 @@ def associate_by_email_if_oauth(auth_entry, backend, details, user, strategy, *a
     `ENABLE_REQUIRE_THIRD_PARTY_AUTH` is enabled.
     """
 
-    if is_require_third_party_auth_enabled() and is_oauth_provider(backend.name, **kwargs):
+    if is_oauth_provider(backend.name, **kwargs):
         association_response, user_is_active = get_associated_user_by_email_response(
             backend, details, user, *args, **kwargs)
 
