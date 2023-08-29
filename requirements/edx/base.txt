@@ -1235,9 +1235,7 @@ yarl==1.9.2
     # via aiohttp
 zipp==3.16.2
     # via
-
-
-#   importlib-metadata
+    #   importlib-metadata
     #   importlib-resources
 
 # The following packages are considered to be unsafe in a requirements file:
